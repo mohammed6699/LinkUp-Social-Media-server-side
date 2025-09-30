@@ -9,12 +9,11 @@ dotenv.config();
 const app = express();
 await connectToDb()
 app.use(express.json());
-
+app.use("/api/inngest", serve({ client: inngest, functions }));
 app.use(cors());
 app.get('/', (req, res) => {
     res.send("Server is running !")
 })
-app.use('/api/inggest', serve({client: inngest, functions}))
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
