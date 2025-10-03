@@ -3,6 +3,8 @@ import User from './../models/user.js';
 import Connection from "./../models/connection.js";
 import sendEmail from "../configs/nodemiller.js";
 import dotenv from 'dotenv';
+import Story from "../models/story.js";
+import Message from "../models/message.js";
 dotenv.config();
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "LinkUp" });
@@ -122,7 +124,7 @@ function getConnectionEmailTemplate(connection, isReminder = false) {
 }
 
 // Main Inngest function
-export const sendNewConnectionRequestReminder = inngest.createFunction(
+const sendNewConnectionRequestReminder = inngest.createFunction(
   { id: 'send-new-connection-request-reminder' },
   { event: 'app/connection-request' },
   async ({ event, step }) => {
@@ -151,7 +153,65 @@ export const sendNewConnectionRequestReminder = inngest.createFunction(
     });
   }
 );
+// delete story auto after 24 hours
+const deleteaStory = inngest.createFunction(
+    {id: 'story-delete'},
+    {event: 'app/story.delete'},
+    async({event, step}) => {
+        const {storyId} = event.data;
+        const in24Hours = new Date(Date.now() * 24 * 60 * 60 * 1000);
 
+        await step.sleepUntil('wait-for-24-hours', in24Hours);
+        await step.run('delete-a-story', async() => {
+            await Story.findByIdAndDelete(storyId);
+            return {message: 'Story deleted'}
+        });
+    }
+)
+// send notification of unseen messages
+const sendNotificationsOfUnseenMessages = inngest.createFunction(
+    {id: 'send-unseen-message-notifications'},
+    {cron: 'TZ=America/New_York 0 9 * * *'}, //every day at 9 am 
+    async(step) => {
+        const messages = await Message.find({seen:false}).populate('to_user_id');
+        const unSeenCount = {};
+        messages.forEach((mes) => {
+      if (mes.to_user_id) {
+        const userId = mes.to_user_id._id.toString();
+        unSeenCount[userId] = (unSeenCount[userId] || 0) + 1;
+      }
+    });
+        // send the mesaage to all user who hs unseen messages
+        for(const userId in unSeenCount){
+            const user = messages.find(
+                (m) => m.to_user_id && m.to_user_id._id.toString() === userId)?.to_user_id;
 
+            if (!user) continue;
+            const subject = `📩 You have ${unseen} unread message${unseen > 1 ? "s" : ""}`;
+            const body = `
+        <div style="font-family: Arial, sans-serif; line-height:1.6; color:#333;">
+          <h2 style="color:#4CAF50;">Hello ${user.name},</h2>
+          <p>You currently have <strong>${unseen} unseen message${unseen > 1 ? "s" : ""}</strong> waiting for you.</p>
+          <p>Don’t miss out! Check your inbox now and stay connected.</p>
+          <a href="https://yourapp.com/messages" 
+             style="display:inline-block; padding:10px 20px; margin-top:10px;
+                    background-color:#4CAF50; color:#fff; text-decoration:none; border-radius:5px;">
+             View Messages
+          </a>
+          <p style="margin-top:20px; font-size:12px; color:#777;">
+            This is an automated reminder sent at 9:00 AM. Please ignore if you already checked your messages.
+          </p>
+        </div>
+      `;
+            await sendEmail({
+                to:user.email,
+                subject,
+                body
+            })
+        }
+        return {message: 'Notification sent!'}
+    } 
+)
 // Create an empty array where we'll export future Inngest functions
-export const functions = [syncUserCreation, syncUserUpdation, syncUserDeletion, sendNewConnectionRequestReminder];
+export const functions = [syncUserCreation, syncUserUpdation, syncUserDeletion, 
+                            sendNewConnectionRequestReminder, deleteaStory, sendNotificationsOfUnseenMessages];

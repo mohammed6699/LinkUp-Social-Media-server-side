@@ -6,6 +6,9 @@ import { serve } from "inngest/express";
 import { inngest, functions } from './inngest/index.js';
 import { clerkMiddleware } from '@clerk/express'
 import userRouter from "./routes/userRoutes.js";
+import postRoter from "./routes/postRoutes.js";
+import storyRouter from "./routes/storyRoutes.js";
+import messageRouter from "./routes/messageRoutes.js";
 // cleerkmiddleware to add the auth property so you can use it 
 dotenv.config();
 
@@ -26,6 +29,9 @@ app.get("/", (req, res) => {
   res.send("Server is running !");
 });
 app.use('/api',userRouter)
+app.use('/api/post', postRoter)
+app.use('/api/story', storyRouter)
+app.use('/api/message', messageRouter)
 // Start server only after DB connects
 connectToDb().then(() => {
   app.listen(port, () => {
