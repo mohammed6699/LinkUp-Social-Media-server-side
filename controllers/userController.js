@@ -266,7 +266,7 @@ export const acceptConnectionRequest = async (req, res) =>{
 
 export const getUserProfiles = async(req, res) => {
     try {
-      const {profileId} = req.body;
+      const {profileId} = req.query; // Changed from req.body to req.query
       const profile = await User.findById(profileId)
       if(!profile){
         return res.status(404).json({success: false, message: 'profile not found'})
@@ -275,7 +275,7 @@ export const getUserProfiles = async(req, res) => {
         user: profileId
       }).populate('user')
 
-      res.status(200).json({success: true, posts})
+      res.status(200).json({success: true, user: profile, posts}) // also return user
     } catch (error) {
       console.log(error)
       res.status(500).json({success: false, message: error.message})

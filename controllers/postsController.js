@@ -1,4 +1,3 @@
-// controllers/postController.js
 import { imagekit } from "../configs/imgaekit.js";
 import Post from "../models/post.js";
 import User from "../models/user.js";
@@ -36,16 +35,18 @@ export const addPost = async (req, res) => {
       );
     }
 
-    await Post.create({
+    const newPost = await Post.create({
       user: userId,
       content,
       Image_urls,
       post_type,
     });
 
+    const post = await Post.findById(newPost._id).populate("user", "full_name username profile_picture");
+
     res
       .status(200)
-      .json({ success: true, message: "Post created successfully" });
+      .json({ success: true, message: "Post created successfully", post });
   } catch (error) {
     console.log(error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -62,7 +63,8 @@ export const getAllPosts = async (req, res) => {
     const userIds = [userId, ...user.connections, ...user.following];
 
     const posts = await Post.find({ user: { $in: userIds } })
-      .populate("user", "name email profileImage") // populate selected fields
+      .populate("user", "full_name username profile_picture") // populate selected fields
+      .populate("comments.user", "full_name username profile_picture") // populate user in comments
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, posts });
@@ -97,6 +99,64 @@ export const likePost = async (req, res) => {
       return res
         .status(200)
         .json({ success: true, message: "Post liked", post });
+    }
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// add comment
+export const addComment = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { postId, text } = req.body;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found" });
+    }
+
+    const comment = {
+      user: userId,
+      text,
+    };
+
+    post.comments.push(comment);
+    await post.save();
+
+    res.status(200).json({ success: true, message: "Comment added", post });
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// share post
+export const sharePost = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { postId } = req.body;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found" });
+    }
+
+    if (post.share_count.includes(userId)) {
+      // unshare
+      post.share_count = post.share_count.filter((id) => id.toString() !== userId);
+      await post.save();
+      return res
+        .status(200)
+        .json({ success: true, message: "Post unshared", post });
+    } else {
+      // share
+      post.share_count.push(userId);
+      await post.save();
+      return res
+        .status(200)
+        .json({ success: true, message: "Post shared", post });
     }
   } catch (error) {
     console.log(error.message);
