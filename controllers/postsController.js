@@ -59,8 +59,8 @@ export const getAllPosts = async (req, res) => {
     const { userId } = req.auth;
     const user = await User.findById(userId);
 
-    // user connections and following
-    const userIds = [userId, ...user.connections, ...user.following];
+    // user connections
+    const userIds = [userId, ...user.connections];
 
     const posts = await Post.find({ user: { $in: userIds } })
       .populate("user", "full_name username profile_picture") // populate selected fields

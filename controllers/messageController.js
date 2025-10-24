@@ -30,7 +30,8 @@ export const serverSideController = async (req, res) => {
 export const sendMessage = async (req, res) => {
     try {
         const {userId} = req.auth;
-        const {to_user_id} = req.body;
+        console.log(req.body);
+        const {to_user_id, test} = req.body;
         const image = req.file;
         let media_url = "";
         let message_type = image ? 'image': 'text';
@@ -61,6 +62,7 @@ export const sendMessage = async (req, res) => {
         res.status(200).json({success: true, message})
         // send mesage to userId in real time
         const messageWithUserData = await Message.findById(message._id).populate('from_user_id');
+        req.io.to(to_user_id).emit("receive_message", messageWithUserData);
         if(connections[to_user_id]){
             connections[to_user_id].write(`data: ${JSON.stringify(messageWithUserData)}\n\n`)
         }
@@ -89,11 +91,11 @@ export const getChatMessage = async (req, res) => {
 }
 
 // get recent messages
-export const getUserRecentMessages = async(req, res) => {
+export const getUnreadMessageCount = async(req, res) => {
     try {
         const {userId} = req.auth
-        const messages = (await Message.find({to_user_id: userId}).populate('from_user_id to_user_id')).sort({createdAt: -1})
-        res.status(200).json({success: true, messages})
+        const count = await Message.countDocuments({to_user_id: userId, seen: false})
+        res.status(200).json({success: true, count})
     } catch (error) {
         console.log(error);
         res.status(500).json({success: false, message: error.message})
